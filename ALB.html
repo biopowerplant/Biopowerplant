@@ -79,32 +79,62 @@
   </div>
 
   <script>
-    // Calcolo mese precedente
+    // Calcolo mese precedente in italiano
     const mesi = [
       "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
       "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
     ];
     const oggi = new Date();
     const mesePrec = oggi.getMonth() === 0 ? 11 : oggi.getMonth() - 1;
-    const nomeMese = mesi[mesePrec];
+    const nomeMese = mesi[mesePrec].toUpperCase();
 
     // Imposta titolo dinamico
     document.getElementById("titolo").innerText = `ALB – Raccolta dati mese ${nomeMese}`;
 
-    // Finto invio per ora
-    function inviaDati() {
+    // Invio reale al flusso Power Automate
+    async function inviaDati() {
       const produzione = document.getElementById("produzione").value;
       const acquisto = document.getElementById("acquisto").value;
       const cessione = document.getElementById("cessione").value;
+      const messaggio = document.getElementById("messaggio");
 
       if (!produzione || !acquisto || !cessione) {
-        document.getElementById("messaggio").innerText = "⚠️ Compila tutti i campi prima di inviare.";
+        messaggio.innerText = "⚠️ Compila tutti i campi prima di inviare.";
+        messaggio.style.color = "red";
         return;
       }
 
-      document.getElementById("messaggio").innerText = 
-        `✅ Dati salvati localmente. (Simulazione invio Power Automate)
-        \nProduzione: ${produzione} – Acquisto: ${acquisto} – Cessione: ${cessione}`;
+      // Dati da inviare al Flow
+      const data = {
+        codice_cliente: "ALB",
+        mese: nomeMese,
+        produzione: parseFloat(produzione),
+        acquisto: parseFloat(acquisto),
+        cessione: parseFloat(cessione)
+      };
+
+      // URL Power Automate (HTTP Trigger)
+      const flowUrl = "https://default355eeb9eba794eb3a1b8708f95a2b4.58.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b991c7803d5c4886a5a2b0874e570dec/triggers/manual/paths/invoke?api-version=1";
+
+      try {
+        const response = await fetch(flowUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+          messaggio.style.color = "green";
+          messaggio.innerText = `✅ Dati inviati con successo per il mese di ${nomeMese}.`;
+        } else {
+          messaggio.style.color = "red";
+          messaggio.innerText = "❌ Errore durante l'invio dei dati. Riprovare.";
+        }
+      } catch (error) {
+        messaggio.style.color = "red";
+        messaggio.innerText = "⚠️ Errore di connessione al server.";
+        console.error(error);
+      }
     }
   </script>
 </body>

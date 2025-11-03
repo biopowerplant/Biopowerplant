@@ -5,73 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ALB - Raccolta dati</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f4f6f9;
-      color: #333;
-      margin: 0;
-      padding: 40px;
-    }
-    .container {
-      max-width: 500px;
-      margin: 40px auto;
-      background: #fff;
-      border-radius: 12px;
-      padding: 30px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    h1 {
-      text-align: center;
-      color: #0078d7;
-      font-size: 22px;
-    }
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
-    input {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-    button {
-      margin-top: 25px;
-      width: 100%;
-      padding: 12px;
-      background: #0078d7;
-      color: #fff;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #005fa3;
-    }
-    .note {
-      text-align: center;
-      color: #555;
-      margin-top: 20px;
-      font-size: 13px;
-    }
+    body { font-family: Arial, sans-serif; background:#f4f6f9; color:#333; margin:0; padding:40px; }
+    .container { max-width:520px; margin:40px auto; background:#fff; border-radius:12px; padding:30px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
+    h1 { text-align:center; color:#0078d7; font-size:22px; }
+    label { display:block; margin-top:15px; font-weight:bold; }
+    input, select { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+    button { margin-top:25px; width:100%; padding:12px; background:#0078d7; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer; }
+    button:hover { background:#005fa3; }
+    .note { text-align:center; color:#555; margin-top:20px; font-size:13px; min-height:1.2em; }
+    .row { display:flex; gap:12px; }
+    .row > div { flex:1; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 id="titolo"></h1>
 
+    <div class="row">
+      <div>
+        <label for="mese">Mese</label>
+        <select id="mese"></select>
+      </div>
+      <div>
+        <label for="anno2">Anno (2 cifre)</label>
+        <select id="anno2"></select>
+      </div>
+    </div>
+
     <label for="produzione">Produzione (kWh)</label>
-    <input type="number" id="produzione" placeholder="Inserisci valore">
+    <input type="number" id="produzione" placeholder="Inserisci valore" step="any" min="0">
 
     <label for="acquisto">Acquisto (kWh)</label>
-    <input type="number" id="acquisto" placeholder="Inserisci valore">
+    <input type="number" id="acquisto" placeholder="Inserisci valore" step="any" min="0">
 
     <label for="cessione">Cessione (kWh)</label>
-    <input type="number" id="cessione" placeholder="Inserisci valore">
+    <input type="number" id="cessione" placeholder="Inserisci valore" step="any" min="0">
 
     <button id="btnInvia" onclick="inviaDati()">📤 Invia dati</button>
 
@@ -79,63 +47,126 @@
   </div>
 
   <script>
-    // Calcolo mese precedente in italiano
-    const mesi = [
-      "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
-      "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"
-    ];
-    const oggi = new Date();
-    const mesePrec = oggi.getMonth() === 0 ? 11 : oggi.getMonth() - 1;
-    const nomeMese = mesi[mesePrec].toUpperCase();
+    // === Periodo di riferimento: mese precedente e relativo anno ===
+    const mesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+    const selMese = document.getElementById("mese");
+    const selAnno2 = document.getElementById("anno2");
+    const titolo = document.getElementById("titolo");
 
-    // Imposta titolo dinamico
-    document.getElementById("titolo").innerText = `ALB – Raccolta dati mese ${nomeMese}`;
+    function periodoDefault() {
+      const oggi = new Date();
+      // mese corrente 0..11 ; mese precedente:
+      const mPrec = (oggi.getMonth() + 11) % 12;     // 0..11
+      // se oggi è gennaio (0), allora anno = anno corrente - 1
+      const annoRif = oggi.getMonth() === 0 ? (oggi.getFullYear() - 1) : oggi.getFullYear();
+      return { mPrec, annoRif };
+    }
 
-    // Invio reale al flusso Power Automate
-    async function inviaDati() {
-      const produzione = document.getElementById("produzione").value;
-      const acquisto = document.getElementById("acquisto").value;
-      const cessione = document.getElementById("cessione").value;
-      const messaggio = document.getElementById("messaggio");
+    // Popola select mese
+    function popolaMesi(defaultIdx) {
+      mesi.forEach((m, i) => {
+        const opt = document.createElement("option");
+        opt.value = (i + 1).toString(); // 1..12
+        opt.textContent = m;
+        if (i === defaultIdx) opt.selected = true;
+        selMese.appendChild(opt);
+      });
+    }
 
-      if (!produzione || !acquisto || !cessione) {
-        messaggio.innerText = "⚠️ Compila tutti i campi prima di inviare.";
-        messaggio.style.color = "red";
-        return;
-      }
-
-      // Dati da inviare al Flow
-      const data = {
-        codice_cliente: "ALB",
-        mese: nomeMese,
-        produzione: parseFloat(produzione),
-        acquisto: parseFloat(acquisto),
-        cessione: parseFloat(cessione)
-      };
-
-      // URL Power Automate (HTTP Trigger)
-      const flowUrl = "https://default355eeb9eba794eb3a1b8708f95a2b4.58.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/b991c7803d5c4886a5a2b0874e570dec/triggers/manual/paths/invoke?api-version=1";
-
-      try {
-        const response = await fetch(flowUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
-        });
-
-        if (response.ok) {
-          messaggio.style.color = "green";
-          messaggio.innerText = `✅ Dati inviati con successo per il mese di ${nomeMese}.`;
-        } else {
-          messaggio.style.color = "red";
-          messaggio.innerText = "❌ Errore durante l'invio dei dati. Riprovare.";
-        }
-      } catch (error) {
-        messaggio.style.color = "red";
-        messaggio.innerText = "⚠️ Errore di connessione al server.";
-        console.error(error);
+    // Popola select anno (2 cifre) e seleziona annoRif
+    function popolaAnni(annoRif) {
+      const yyRif = annoRif % 100;
+      const startYY = yyRif - 2;
+      const endYY = yyRif + 3;
+      for (let yy = startYY; yy <= endYY; yy++) {
+        const norm = ((yy % 100) + 100) % 100; // 0..99
+        const opt = document.createElement("option");
+        opt.value = norm.toString().padStart(2,"0");
+        opt.textContent = opt.value;
+        if (norm === yyRif) opt.selected = true;
+        selAnno2.appendChild(opt);
       }
     }
+
+    function aggiornaTitolo() {
+      const nomeMese = mesi[parseInt(selMese.value, 10) - 1].toUpperCase();
+      titolo.innerText = `ALB – Raccolta dati ${nomeMese} '${selAnno2.value}`;
+    }
+
+    // Inizializza
+    (function init(){
+      const { mPrec, annoRif } = periodoDefault();
+      popolaMesi(mPrec);
+      popolaAnni(annoRif);
+      aggiornaTitolo();
+      selMese.addEventListener("change", aggiornaTitolo);
+      selAnno2.addEventListener("change", aggiornaTitolo);
+    })();
+
+    // === Invio ===
+    async function inviaDati() {
+      const produzione = document.getElementById("produzione").value;
+      const acquisto   = document.getElementById("acquisto").value;
+      const cessione   = document.getElementById("cessione").value;
+      const messaggio  = document.getElementById("messaggio");
+      const btn        = document.getElementById("btnInvia");
+
+      if (!produzione || !acquisto || !cessione) return setMsg("⚠️ Compila tutti i campi.", "red");
+      if (+produzione < 0 || +acquisto < 0 || +cessione < 0) return setMsg("⚠️ I valori devono essere ≥ 0.", "red");
+
+      const meseNum = parseInt(selMese.value, 10);           // 1..12
+      const anno2   = parseInt(selAnno2.value, 10);          // 0..99
+      const anno    = 2000 + anno2;                          // 20xx
+      const tsInvio = new Date().toISOString();
+
+      // JSON schema #2 + timestamp invio
+      const payload = {
+        codice_cliente: "ALB",
+        anno: anno,
+        mese: meseNum,
+        produzione: parseFloat(produzione),
+        acquisto: parseFloat(acquisto),
+        cessione: parseFloat(cessione),
+        aggiornato_at: tsInvio
+      };
+
+      // Sostituisci con il tuo backend che salva su GitHub e risponde con {status,message}
+      const endpoint = "https://tuo-endpoint.example.com/letture";
+
+      try {
+        btn.disabled = true;
+        setMsg("⏳ Invio in corso…", "#555");
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        let data = null;
+        try { data = await res.json(); } catch {}
+
+        if (!res.ok) {
+          return setMsg(esito("failure", data?.message || "Errore durante il salvataggio."), "red");
+        }
+
+        const status = (data?.status || "").toLowerCase();
+        switch (status) {
+          case "created":     return setMsg("✅ Creato nuovo (salvato).", "green");
+          case "overwritten": return setMsg("♻️ Sovrascritto (aggiornato).", "#0a7");
+          case "unchanged":   return setMsg("ℹ️ Non modificato (identico al precedente).", "#555");
+          default:            return setMsg(esito("failure", data?.message || "Risposta inattesa."), "red");
+        }
+      } catch (e) {
+        console.error(e);
+        setMsg("⚠️ Errore di connessione al server.", "red");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function setMsg(text, color){ const el = document.getElementById("messaggio"); el.innerText = text; el.style.color = color; }
+    function esito(kind, msg){ return kind==="failure" ? `❌ Failure: ${msg}` : (msg||""); }
   </script>
 </body>
 </html>

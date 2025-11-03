@@ -7,30 +7,19 @@
   <style>
     body { font-family: Arial, sans-serif; background:#f4f6f9; color:#333; margin:0; padding:40px; }
     .container { max-width:520px; margin:40px auto; background:#fff; border-radius:12px; padding:30px; box-shadow:0 2px 8px rgba(0,0,0,0.1); }
-    h1 { text-align:center; color:#0078d7; font-size:22px; }
+    h1 { text-align:center; color:#0078d7; font-size:22px; margin-bottom:5px; }
+    .sub { text-align:center; font-size:13px; color:#666; margin-bottom:20px; }
     label { display:block; margin-top:15px; font-weight:bold; }
-    input, select { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+    input { width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
     button { margin-top:25px; width:100%; padding:12px; background:#0078d7; color:#fff; border:none; border-radius:8px; font-size:16px; cursor:pointer; }
     button:hover { background:#005fa3; }
     .note { text-align:center; color:#555; margin-top:20px; font-size:13px; min-height:1.2em; }
-    .row { display:flex; gap:12px; }
-    .row > div { flex:1; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 id="titolo"></h1>
-
-    <div class="row">
-      <div>
-        <label for="mese">Mese</label>
-        <select id="mese"></select>
-      </div>
-      <div>
-        <label for="anno2">Anno (2 cifre)</label>
-        <select id="anno2"></select>
-      </div>
-    </div>
+    <p class="sub" id="sottotitolo"></p>
 
     <label for="produzione">Produzione (kWh)</label>
     <input type="number" id="produzione" placeholder="Inserisci valore" step="any" min="0">
@@ -47,63 +36,33 @@
   </div>
 
   <script>
-    // === Periodo di riferimento: mese precedente e relativo anno ===
-    const mesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-    const selMese = document.getElementById("mese");
-    const selAnno2 = document.getElementById("anno2");
-    const titolo = document.getElementById("titolo");
+    const mesi = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+    let meseRifNum = null;  // 1..12
+    let annoRif = null;
 
-    function periodoDefault() {
+    // calcola mese/anno di riferimento (mese precedente)
+    (function initPeriodo(){
       const oggi = new Date();
-      // mese corrente 0..11 ; mese precedente:
-      const mPrec = (oggi.getMonth() + 11) % 12;     // 0..11
-      // se oggi è gennaio (0), allora anno = anno corrente - 1
-      const annoRif = oggi.getMonth() === 0 ? (oggi.getFullYear() - 1) : oggi.getFullYear();
-      return { mPrec, annoRif };
-    }
+      const meseCorr = oggi.getMonth(); // 0..11
+      const annoCorr = oggi.getFullYear();
 
-    // Popola select mese
-    function popolaMesi(defaultIdx) {
-      mesi.forEach((m, i) => {
-        const opt = document.createElement("option");
-        opt.value = (i + 1).toString(); // 1..12
-        opt.textContent = m;
-        if (i === defaultIdx) opt.selected = true;
-        selMese.appendChild(opt);
-      });
-    }
-
-    // Popola select anno (2 cifre) e seleziona annoRif
-    function popolaAnni(annoRif) {
-      const yyRif = annoRif % 100;
-      const startYY = yyRif - 2;
-      const endYY = yyRif + 3;
-      for (let yy = startYY; yy <= endYY; yy++) {
-        const norm = ((yy % 100) + 100) % 100; // 0..99
-        const opt = document.createElement("option");
-        opt.value = norm.toString().padStart(2,"0");
-        opt.textContent = opt.value;
-        if (norm === yyRif) opt.selected = true;
-        selAnno2.appendChild(opt);
+      if (meseCorr === 0) {
+        // gennaio -> prendo dicembre anno precedente
+        meseRifNum = 12;
+        annoRif = annoCorr - 1;
+      } else {
+        meseRifNum = meseCorr; // es. novembre (10) -> meseRif = 10 -> ottobre
+        annoRif = annoCorr;
       }
-    }
 
-    function aggiornaTitolo() {
-      const nomeMese = mesi[parseInt(selMese.value, 10) - 1].toUpperCase();
-      titolo.innerText = `ALB – Raccolta dati ${nomeMese} '${selAnno2.value}`;
-    }
+      const titolo = document.getElementById("titolo");
+      const sottotitolo = document.getElementById("sottotitolo");
+      const nomeMese = mesi[meseRifNum - 1]; // 0..11
 
-    // Inizializza
-    (function init(){
-      const { mPrec, annoRif } = periodoDefault();
-      popolaMesi(mPrec);
-      popolaAnni(annoRif);
-      aggiornaTitolo();
-      selMese.addEventListener("change", aggiornaTitolo);
-      selAnno2.addEventListener("change", aggiornaTitolo);
+      titolo.innerText = `ALB – rilevazione mese ${nomeMese} ${annoRif}`;
+      sottotitolo.innerText = "Compila i dati e premi Invia.";
     })();
 
-    // === Invio ===
     async function inviaDati() {
       const produzione = document.getElementById("produzione").value;
       const acquisto   = document.getElementById("acquisto").value;
@@ -114,24 +73,17 @@
       if (!produzione || !acquisto || !cessione) return setMsg("⚠️ Compila tutti i campi.", "red");
       if (+produzione < 0 || +acquisto < 0 || +cessione < 0) return setMsg("⚠️ I valori devono essere ≥ 0.", "red");
 
-      const meseNum = parseInt(selMese.value, 10);           // 1..12
-      const anno2   = parseInt(selAnno2.value, 10);          // 0..99
-      const anno    = 2000 + anno2;                          // 20xx
-      const tsInvio = new Date().toISOString();
-
-      // JSON schema #2 + timestamp invio
       const payload = {
         codice_cliente: "ALB",
-        anno: anno,
-        mese: meseNum,
+        anno: annoRif,
+        mese: meseRifNum,
         produzione: parseFloat(produzione),
         acquisto: parseFloat(acquisto),
         cessione: parseFloat(cessione),
-        aggiornato_at: tsInvio
+        aggiornato_at: new Date().toISOString()
       };
 
-      // Sostituisci con il tuo backend che salva su GitHub e risponde con {status,message}
-      const endpoint = "https://tuo-endpoint.example.com/letture";
+      const endpoint = "https://tuo-endpoint.example.com/letture"; // <-- da fare lato server
 
       try {
         btn.disabled = true;
@@ -147,16 +99,14 @@
         try { data = await res.json(); } catch {}
 
         if (!res.ok) {
-          return setMsg(esito("failure", data?.message || "Errore durante il salvataggio."), "red");
+          return setMsg(`❌ Errore: ${data?.message || "Errore durante il salvataggio."}`, "red");
         }
 
-        const status = (data?.status || "").toLowerCase();
-        switch (status) {
-          case "created":     return setMsg("✅ Creato nuovo (salvato).", "green");
-          case "overwritten": return setMsg("♻️ Sovrascritto (aggiornato).", "#0a7");
-          case "unchanged":   return setMsg("ℹ️ Non modificato (identico al precedente).", "#555");
-          default:            return setMsg(esito("failure", data?.message || "Risposta inattesa."), "red");
-        }
+        setMsg("✅ Dati ricevuti.", "green");
+        // se vuoi svuotare i campi:
+        // document.getElementById("produzione").value = "";
+        // document.getElementById("acquisto").value   = "";
+        // document.getElementById("cessione").value   = "";
       } catch (e) {
         console.error(e);
         setMsg("⚠️ Errore di connessione al server.", "red");
@@ -165,8 +115,11 @@
       }
     }
 
-    function setMsg(text, color){ const el = document.getElementById("messaggio"); el.innerText = text; el.style.color = color; }
-    function esito(kind, msg){ return kind==="failure" ? `❌ Failure: ${msg}` : (msg||""); }
+    function setMsg(text, color){
+      const el = document.getElementById("messaggio");
+      el.innerText = text;
+      el.style.color = color;
+    }
   </script>
 </body>
 </html>
